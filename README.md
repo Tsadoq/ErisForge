@@ -1,6 +1,7 @@
 ![erisforge_logo](https://github.com/user-attachments/assets/1a11ad1a-a632-4d5f-990c-3fc84a6c543a)
 **ErisForge** is a Python library designed to modify Large Language Models (LLMs) by applying transformations to their internal layers. Named after Eris, the goddess of strife and discord, ErisForge allows you to alter model behavior in a controlled manner, creating both ablated and augmented versions of LLMs that respond differently to specific types of input.
 
+
 ## Features
 
 - Modify internal layers of LLMs to produce altered behaviors.
