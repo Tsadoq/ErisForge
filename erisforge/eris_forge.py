@@ -43,13 +43,15 @@ from erisforge.utils.layer_utils import (
 
 
 class Forge:
-    def __init__(self, batch_size: int = 10):
+    def __init__(self, batch_size: int = 10, custom_chat_template: str | None = None):
         """
         Initializes the Forge object.
+        :param custom_chat_template: Chat template to use when the tokenizer has no native template.
         """
         self.max_toks = 1
         self.max_iterations: int = 0
         self.batch_size: int = batch_size
+        self.custom_chat_template = custom_chat_template
         self.objective_behaviour_instructions: List[str] = []
         self.anti_behaviour_instructions: List[str] = []
         if torch.backends.mps.is_available():
@@ -88,6 +90,7 @@ class Forge:
             tokenizer: PreTrainedTokenizerBase,
             instruction: str,
             bar: tqdm | None = None,
+            custom_chat_template: str | None = None,
     ) -> torch.Tensor:
         """
         Tokenizes the instruction.
@@ -96,14 +99,8 @@ class Forge:
         :param bar: Progress bar object.
         :return: Tokenized instruction in the form of a tensor.
         """
-        try:
-            tokens: torch.Tensor = tokenizer.apply_chat_template(
-                conversation=[{"role": "user", "content": instruction}],
-                add_generation_prompt=True,
-                return_tensors="pt",
-                return_dict=True,
-            )
-        except ValueError:
+        native_chat_template = getattr(tokenizer, "chat_template", None)
+        if native_chat_template is None and custom_chat_template is None:
             logging.error(
                 "Warning: your model's tokenizer does not support chat templates. "
                 "Falling back to default template."
@@ -111,6 +108,17 @@ class Forge:
             tokens: torch.Tensor = tokenizer(
                 f"User query: {instruction}\nAI Assistant: ",
                 return_tensors="pt",
+            )
+        else:
+            template_kwargs = {}
+            if native_chat_template is None:
+                template_kwargs["chat_template"] = custom_chat_template
+            tokens: torch.Tensor = tokenizer.apply_chat_template(
+                conversation=[{"role": "user", "content": instruction}],
+                add_generation_prompt=True,
+                return_tensors="pt",
+                return_dict=True,
+                **template_kwargs,
             )
         if bar:
             bar.update(n=1)
@@ -163,14 +171,24 @@ class Forge:
         logging.info("Tokenizing objective_behaviour instructions...")
         with tqdm(total=max_n_objective_behaviour_instruction, desc="Tokenizing objective_behaviour instructions", disable=disable_tqdm) as bar:
             objective_behaviour_instr_tokens = [
-                self._tokenize(tokenizer=tokenizer, instruction=instr, bar=bar)
+                self._tokenize(
+                    tokenizer=tokenizer,
+                    instruction=instr,
+                    bar=bar,
+                    custom_chat_template=self.custom_chat_template,
+                )
                 for instr in objective_behaviour_instructions
             ]
 
         logging.info("Tokenizing antiobjective instructions...")
         with tqdm(total=max_n_antiobjective_instruction, desc="Tokenizing antiobjective instructions", disable=disable_tqdm) as bar:
             antiobjective_instr_tokens = [
-                self._tokenize(tokenizer=tokenizer, instruction=instr, bar=bar)
+                self._tokenize(
+                    tokenizer=tokenizer,
+                    instruction=instr,
+                    bar=bar,
+                    custom_chat_template=self.custom_chat_template,
+                )
                 for instr in anti_behaviour_instructions
             ]
         logging.info("Tokenization complete.")
@@ -382,12 +400,22 @@ class Forge:
         logging.info("Tokenizing evaluation instructions...")
         with tqdm(total=len(eval_objective_behaviour_instructions), desc="Tokenizing objective_behaviour Eval Instructions set", disable=disable_tqdm) as bar:
             obj_beh_toks = [
-                self._tokenize(tokenizer=tokenizer, instruction=instr, bar=bar)
+                self._tokenize(
+                    tokenizer=tokenizer,
+                    instruction=instr,
+                    bar=bar,
+                    custom_chat_template=self.custom_chat_template,
+                )
                 for instr in eval_objective_behaviour_instructions
             ]
         with tqdm(total=len(eval_antiobjective_instructions), desc="Tokenizing antiobjective Eval Instructions set", disable=disable_tqdm) as bar:
             anti_obj_toks = [
-                self._tokenize(tokenizer=tokenizer, instruction=instr, bar=bar)
+                self._tokenize(
+                    tokenizer=tokenizer,
+                    instruction=instr,
+                    bar=bar,
+                    custom_chat_template=self.custom_chat_template,
+                )
                 for instr in eval_antiobjective_instructions
             ]
 
@@ -622,7 +650,12 @@ class Forge:
             logging.info("Tokenizing instructions for newly forged model.")
             with tqdm(total=len(instructions), desc="Tokenizing instructions for newly forged model", disable=disable_tqdm) as bar:
                 instr_tokens = [
-                    self._tokenize(tokenizer=tokenizer, instruction=instr, bar=bar)
+                    self._tokenize(
+                        tokenizer=tokenizer,
+                        instruction=instr,
+                        bar=bar,
+                        custom_chat_template=self.custom_chat_template,
+                    )
                     for instr in instructions
                 ]
         else:
@@ -686,7 +719,12 @@ class Forge:
         elif instructions:
             with tqdm(total=len(instructions), desc="Tokenizing instructions...", disable=disable_tqdm) as bar:
                 instr_tokens = [
-                    self._tokenize(tokenizer=tokenizer, instruction=instr, bar=bar)
+                    self._tokenize(
+                        tokenizer=tokenizer,
+                        instruction=instr,
+                        bar=bar,
+                        custom_chat_template=self.custom_chat_template,
+                    )
                     for instr in instructions
                 ]
         else:
